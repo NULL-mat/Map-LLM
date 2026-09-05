@@ -4,6 +4,8 @@ Map-LLM 是一个以自然语言驱动的 GIS 制图 Agent。它负责理解制�
 
 本公开仓库只保留 Agent、GIS 工具、状态管理和算法接口。真实业务数据、内部算法适配器、模型权重和部署层不在仓库中。
 
+[在线项目展示](https://map-llm-showcase.pages.dev/)
+
 ## 工作方式
 
 ```text
@@ -108,6 +110,8 @@ Map-LLM/
 │   └── __init__.py
 ├── config/                 # 运行参数
 ├── data/README.md          # 本地数据目录说明
+├── cloudflare-showcase/    # 独立静态项目展示页
+├── .github/workflows/      # 展示页自动部署到 Cloudflare Pages
 ├── .env.example            # 配置模板
 ├── pyproject.toml          # 包元数据与依赖
 └── requirements.txt        # 锁定环境依赖

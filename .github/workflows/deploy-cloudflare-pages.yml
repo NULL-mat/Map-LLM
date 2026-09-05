@@ -1,0 +1,41 @@
+name: Deploy Map-LLM showcase to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "cloudflare-showcase/**"
+      - "mapping/templates/mapping/showcase.html"
+      - "static/showcase/**"
+      - ".github/workflows/deploy-cloudflare-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-pages-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Publish showcase
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Sync Django showcase sources
+        shell: bash
+        run: |
+          cp mapping/templates/mapping/showcase.html cloudflare-showcase/index.html
+          mkdir -p cloudflare-showcase/static/showcase
+          cp -f static/showcase/* cloudflare-showcase/static/showcase/
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy cloudflare-showcase --project-name=map-llm-showcase --branch=main --commit-message="${{ github.event.head_commit.message || github.workflow }}"

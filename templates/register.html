@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+    <title>注册</title>
+    <link rel="icon" href="favicon.ico" type="/static/image/ico">
+    <meta name="keywords" content="注册">
+    <meta name="description" content="注册">
+    <meta name="author" content="yinqi">
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/css/materialdesignicons.min.css" rel="stylesheet">
+    <link href="/static/css/style.min.css" rel="stylesheet">
+    <style>
+        html,
+        body {
+            width: 100%;
+            min-height: 100%;
+            margin: 0;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            overflow: hidden;
+            font-family: "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif;
+            background: #e9f5ef url("/static/images/back.jpg") no-repeat center center fixed;
+            background-size: cover;
+        }
+
+        .auth-page {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px 16px;
+        }
+
+        .auth-card {
+            box-sizing: border-box;
+            width: 386px;
+            max-width: 92vw;
+            padding: 36px 48px 34px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 16px 42px rgba(34, 70, 83, 0.16);
+        }
+
+        .auth-title {
+            margin: 0 0 20px;
+            color: #2d3339;
+            font-size: 18px;
+            font-weight: 700;
+            line-height: 1.4;
+        }
+
+        .auth-label {
+            display: block;
+            margin-bottom: 8px;
+            color: #30363d;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .auth-group {
+            margin-bottom: 15px;
+        }
+
+        .input-wrap {
+            position: relative;
+        }
+
+        .input-wrap .mdi {
+            position: absolute;
+            left: 13px;
+            top: 50%;
+            color: #bec6cd;
+            font-size: 17px;
+            transform: translateY(-50%);
+            pointer-events: none;
+        }
+
+        .auth-control {
+            box-sizing: border-box !important;
+            display: block !important;
+            width: 100% !important;
+            height: 36px !important;
+            min-height: 36px !important;
+            padding: 6px 12px 6px 38px !important;
+            border: 1px solid #dce3ea;
+            border-radius: 6px;
+            color: #2f3439;
+            font-size: 14px;
+            line-height: 22px;
+            background: rgba(255, 255, 255, 0.88);
+            box-shadow: none;
+        }
+
+        .auth-control::placeholder {
+            color: #aab3ba;
+        }
+
+        .auth-control:focus {
+            border-color: #49b350;
+            box-shadow: 0 0 0 3px rgba(73, 179, 80, 0.12);
+        }
+
+        .auth-control:-webkit-autofill,
+        .auth-control:-webkit-autofill:hover,
+        .auth-control:-webkit-autofill:focus {
+            -webkit-text-fill-color: #2f3439;
+            box-shadow: 0 0 0 1000px rgba(255, 255, 255, 0.88) inset !important;
+            transition: background-color 9999s ease-in-out 0s;
+        }
+
+        .auth-button {
+            display: block;
+            width: 100%;
+            height: 36px;
+            margin-top: 22px;
+            border: 0;
+            border-radius: 5px;
+            background: #45ad4d;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 14px;
+            text-indent: 14px;
+            box-shadow: 0 8px 16px rgba(69, 173, 77, 0.24);
+        }
+
+        .auth-button:hover,
+        .auth-button:focus {
+            background: #3fa247;
+            color: #fff;
+        }
+
+        .auth-links {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            margin-top: 17px;
+            color: #515b65;
+            font-size: 13px;
+        }
+
+        .auth-links a {
+            color: #3f4852;
+            text-decoration: none;
+        }
+
+        .auth-links a:hover {
+            color: #3fa247;
+        }
+
+        .auth-divider {
+            width: 1px;
+            height: 13px;
+            background: #d6dde4;
+        }
+
+        @media screen and (max-width: 480px) {
+            .auth-card {
+                padding: 32px 28px 28px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+<main class="auth-page">
+    <section class="auth-card">
+        <h1 class="auth-title">用户注册</h1>
+        <form action="/accounts/register" method="post">
+            {% csrf_token %}
+            <div class="auth-group">
+                <label class="auth-label" for="username">用户名</label>
+                <div class="input-wrap">
+                    <i class="mdi mdi-account"></i>
+                    <input name="username" type="text" class="form-control auth-control" id="username" placeholder="请输入用户名">
+                </div>
+            </div>
+
+            <div class="auth-group">
+                <label class="auth-label" for="password">密码</label>
+                <div class="input-wrap">
+                    <i class="mdi mdi-lock"></i>
+                    <input name="password" type="password" class="form-control auth-control" id="password" placeholder="请输入密码">
+                </div>
+            </div>
+
+            <div class="auth-group">
+                <label class="auth-label" for="password2">确认密码</label>
+                <div class="input-wrap">
+                    <i class="mdi mdi-lock-check"></i>
+                    <input name="password2" type="password" class="form-control auth-control" id="password2" placeholder="请再次输入密码">
+                </div>
+            </div>
+
+            <button class="btn auth-button" type="submit">注册</button>
+
+            <div class="auth-links">
+                <a href="/accounts/login">已有账号</a>
+                <span class="auth-divider"></span>
+                <a href="/accounts/login">去登录</a>
+            </div>
+        </form>
+    </section>
+</main>
+
+<script type="text/javascript" src="/static/js/jquery.min.js"></script>
+<script type="text/javascript" src="/static/js/bootstrap.min.js"></script>
+{% if msg %}
+    <script>
+        alert("{{ msg }}")
+    </script>
+{% endif %}
+</body>
+</html>

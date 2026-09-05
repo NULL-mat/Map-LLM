@@ -113,7 +113,7 @@ def setup_logger(force_rebind: bool = False) -> None:
     # 移除所有处理器（sink），避免重复输出或绑定到旧的 stdout
     logger.remove()
 
-    # 绑定到当前的 sys.stdout（可被Django视图内的 StreamingOutputCapture 替换）
+    # Bind to the current stdout so host applications can capture log output.
     logger.add(
         sys.stdout,
         level="INFO",

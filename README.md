@@ -1,154 +1,118 @@
-# Map-LLM 智能制图系统
+# Map-LLM GIS Mapping Agent
 
-[在线项目展示](https://map-llm-showcase.pages.dev/)
+Map-LLM 是一个以自然语言驱动的 GIS 制图 Agent。它负责理解制图目标、规划工具调用，并把空间数据处理、地图渲染、路网综合和多轮修改交给确定性的本地 GIS Runtime 执行。
 
-Map-LLM 是一个自然语言驱动的 GIS 制图工作台。用户描述制图目标，Agent
-负责理解需求和规划步骤，本地 GIS 工具负责读取空间数据、执行空间处理和
-渲染地图。生成结果会保存为可继续修改的地图状态，而不是一次性图片。
+本公开仓库只保留 Agent、GIS 工具、状态管理和算法接口。真实业务数据、内部算法适配器、模型权重和部署层不在仓库中。
 
-> 本仓库是用于公开展示的版本。真实业务数据、训练权重和依赖内部环境的
-> 算法实现不随仓库分发；完整实现保存在私有仓库中。
-
-## 系统主线
+## 工作方式
 
 ```text
 自然语言请求
-    -> Django Web 请求与 Session
-    -> ConversationalMappingAgent
-    -> LangGraph 流程路由
-    -> LangChain Tool Calling / Pydantic Schema
-    -> 本地 GIS Tool
-    -> GeoPandas / Shapely / Matplotlib
-    -> 地图生成或路网综合
-    -> MapState、版本与 Tool Trace
-    -> 返回结果并支持下一轮修改
+    -> ConversationalMappingAgent / ThinkingGISMappingAgent
+    -> LangGraph 流程与条件路由
+    -> LangChain Tool Calling 与 Pydantic Schema
+    -> 本地 GIS 工具
+    -> GeoPandas / Shapely / Matplotlib / NetworkX
+    -> 地图绘制或路网综合
+    -> MapState、SQLite 版本链与 Tool Trace
+    -> 返回结果，并支持下一轮增量修改
 ```
 
-LLM 只负责理解需求、识别意图和规划工具调用，不直接运行 Python，也不直接
-修改地图数据。确定性的 GIS Runtime 负责空间数据处理、样式修改、地图渲染
-和状态提交。
+LLM 只负责理解需求、识别意图和规划工具调用；它不会直接运行 Python 或修改地图状态。GIS Runtime 负责读取空间数据、执行计算、渲染结果，并在校验通过后提交状态。
 
-## 三项能力
+## 核心模块
 
-### 单一尺度自动成图
+- `gis_mapping_agent.agent`：思考-行动-观察制图 Agent，以及支持多轮会话的 `ConversationalMappingAgent`。
+- `gis_mapping_agent.tools`：地图初始化、图层、样式、比例尺、指北针、注记、路网综合和状态操作工具。
+- `gis_mapping_agent.adjustment`：将结构化修改意图校验并编译为白名单 `AdjustmentPatch` / `PatchOperation`。
+- `gis_mapping_agent.models` 与 `gis_mapping_agent.specs`：`MapState`、地图配置、综合参数和修改补丁的 Pydantic 模型。
+- `gis_mapping_agent.state`：会话上下文、SQLite 状态持久化、版本管理和工具调用追踪。
+- `gis_mapping_agent.rendering`：基于 Matplotlib 的地图渲染与结果质量检查。
+- `gis_mapping_agent.generalization` 与 `gis_mapping_agent.algorithms`：Stroke、网眼密度、层次选取等路网综合算法，以及可选 GCNN 适配器接口。
+- `gis_mapping_agent.gis` 与 `gis_mapping_agent.utils`：空间数据读取、范围计算、路径解析和通用辅助能力。
 
-`ConversationalMappingAgent` 从自然语言中提取数据源、图层、样式和地图配置，
-再通过 LangChain 工具完成初始化地图、添加图层、设置样式、添加比例尺、指北针
-和注记等操作。GeoPandas/Fiona 读取矢量数据，Shapely 处理几何，Matplotlib
-完成渲染；图层、样式、范围和版式元素最终写入 `MapState`。
+## 三类制图能力
+
+### 自动制图
+
+Agent 从自然语言提取数据文件、图层和版式要求，按初始化地图、添加图层、设置样式、添加地图元素、保存结果的顺序调用工具。GeoPandas/Fiona 读取矢量数据，Shapely 处理几何，Matplotlib 生成图片，最终配置写入 `MapState`。
 
 ### 多尺度路网综合
 
-路网综合通过统一的 `RoadNetworkGeneralizationEngine` 接收算法、尺度和保留比例，
-返回综合结果与统计信息。Stroke、网眼密度和层次选取等通用算法代码保留为
-可阅读的接口示例；GCNN 在公开版中只保留 `GCNNSelector` 合约，训练数据、模型
-权重和推理实现由私有部署注入。公开版不会伪造 GCNN 结果，调用时会明确提示
-缺少私有适配器。
+`RoadNetworkGeneralizationEngine` 接收源比例尺、目标比例尺、算法和可选 `keep_ratio`。Stroke、网眼密度和层次选取算法会根据尺度参数计算综合程度并返回统计结果；GCNN 仅保留公开适配器合约，未配置私有实现时会明确失败，不会静默替换算法。
 
-### 多轮动态调整
+### 多轮动态修改
 
-用户可以在已有地图上继续说“把道路改成黄色”“增加比例尺”或“调整标题”。
-流程为：
+每轮修改先加载当前 `MapState`，再由 `IntentAnalysisV2` 解析自然语言。修改引擎校验目标图层和参数，将合法意图编译为受控 Patch，执行局部更新、重新渲染并保存新的完整状态版本。历史版本可以直接加载或回退，不需要让 LLM 推导反向操作。
 
-```text
-加载当前 MapState
-    -> IntentAnalysisV2（结构化意图）
-    -> 当前状态与参数校验
-    -> AdjustmentPatch / PatchOperation
-    -> 白名单操作执行
-    -> 重新渲染
-    -> 保存新版本
-```
+## 状态与可靠性
 
-`AdjustmentPatch` 由 Python 根据已校验的意图编译生成，LLM 不直接生成可执行
-代码。每个版本保存父版本关系，历史状态可直接加载用于恢复。
+- SQLite 保存会话、完整 `MapState` 快照、版本父子关系和修改记录；运行时上下文保存在 `SessionContext`。
+- Pydantic Schema 约束工具输入、意图和 Patch 结构，参数错误会在执行前返回失败信息。
+- 不存在的图层、缺少数据文件、渲染异常和工具异常会返回结构化错误，并写入 Tool Trace。
+- Agent 通过规则路径、结构化意图校验和有限工具迭代控制不确定性；只有有效修改才生成新版本。
+- `event_callback` 可选用于宿主程序接收工具进度，核心包本身不依赖 Web 框架。
 
-## Agent 分层
+## 安装
 
-| 层 | 作用 |
-| --- | --- |
-| Django Web | 登录、会话、地图请求、历史结果和下载接口 |
-| `ConversationState` | 保存消息、意图、任务类型、错误和流程节点信息 |
-| LangGraph | 管理创建、修改、查询、确认和错误处理的条件路由 |
-| LangChain | 接入模型、绑定 Schema、处理 Tool Calling 与工具结果 |
-| LLM | 解析自然语言并规划下一步，不直接执行 GIS 操作 |
-| GIS Tool / Runtime | 读取数据、执行空间计算、修改样式并渲染地图 |
-| `MapState` | 保存图层、配置、版式元素、综合结果和版本信息 |
-| SQLite 状态层 | 持久化 Session、MapState、图层、注记和版本关系 |
-
-## 工程边界与可靠性
-
-- `IntentAnalysisV2`、`MapState`、`AdjustmentPatch` 使用 Pydantic 进行结构校验。
-- 意图解析失败时，Agent 使用规则路径作为后备，并把错误返回到对话层。
-- 工具输入错误、数据文件不存在、渲染异常会返回结构化失败结果并写入 Tool Trace。
-- 修改在状态副本上执行，只有生成有效修改记录后才创建新版本。
-- 历史版本采用完整快照，恢复时不需要让 LLM 推导反向操作。
-- GCNN 依赖私有模型和数据，公开版本采用失败即提示的策略，避免静默替换算法。
-
-## 本地运行
-
-### 环境
-
-- Python 3.9+
-- GeoPandas、Shapely、Matplotlib、LangChain、LangGraph 等依赖
-- 如果使用 LLM，需要兼容 Tool Calling 的模型服务
-
-### 安装
+需要 Python 3.9 或更高版本，以及 GeoPandas、Shapely、Matplotlib、LangChain 和 LangGraph 的运行环境。
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+python -m pip install -e .
 copy .env.example .env
-python manage.py migrate
-python manage.py check
-python manage.py runserver
 ```
 
-访问：
-
-- 地图工作台：`http://127.0.0.1:8000/mapping/`
-- 项目展示：`http://127.0.0.1:8000/mapping/showcase/`
-- 登录：`http://127.0.0.1:8000/accounts/login`
-- 管理后台：`http://127.0.0.1:8000/admin/`
-
-### 模型配置
-
-在本地 `.env` 中填写，不要提交该文件：
+在 `.env` 中设置兼容 Tool Calling 的模型服务：
 
 ```dotenv
 OPENAI_API_KEY=your-api-key
 OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=gpt-4o-mini
+DATA_DIRECTORY_BASE=data
+OUTPUT_DIR=outputs
 ```
 
-公开仓库不包含任何 API Key、数据库文件、GIS 数据、日志或生成结果。请将
-自己的数据目录配置到 `DATA_DIRECTORY_BASE`；`data/` 目录只提供说明文件。
+不要提交 `.env`、空间数据、数据库、日志或生成结果。
 
-## 目录说明
+## 使用示例
+
+```python
+from gis_mapping_agent import ConversationalMappingAgent
+
+agent = ConversationalMappingAgent()
+created = agent.chat("使用 data/roads.shp 绘制道路地图，线条设置为黄色，添加比例尺")
+print(created["message"])
+
+updated = agent.chat("把道路线宽改为 3")
+print(updated["message"])
+```
+
+需要直接控制思考-行动-观察循环时，可使用 `ThinkingGISMappingAgent`。地图状态默认写入 `outputs/states/map_states.db`，渲染文件写入 `outputs/`。
+
+## 目录
 
 ```text
 Map-LLM/
-├── accounts/                         # 登录、注册和用户资料
-├── mapping/                          # Django 页面、API 和业务模型
 ├── gis_mapping_agent/
-│   ├── agent/                        # 对话式 Agent 与 LangGraph 流程
-│   ├── tools/                        # LangChain GIS 工具
-│   ├── adjustment/                   # 意图到 AdjustmentPatch 的编译与执行
-│   ├── models/                       # MapState 与版本 Schema
-│   ├── state/                        # SQLite 状态管理与 Tool Trace
-│   ├── rendering/                    # 地图渲染和质量检查
-│   └── algorithms/                   # 通用算法示例与私有算法接口
-├── cloudflare-showcase/              # Cloudflare Pages 静态展示页
-├── static/                           # Django 静态资源与展示素材
-├── data/README.md                    # 本地数据目录说明
-├── .env.example                      # 脱敏配置模板
-└── requirements.txt                  # Python 依赖
+│   ├── agent/              # Agent 与流程编排
+│   ├── tools/              # LangChain GIS 工具
+│   ├── adjustment/         # 意图到受控 Patch 的编译
+│   ├── models/ specs/      # MapState 与结构化 Schema
+│   ├── state/              # SQLite、会话上下文和 Trace
+│   ├── rendering/          # 地图渲染与质量检查
+│   ├── generalization/    # 路网综合引擎
+│   ├── algorithms/         # 通用算法与可选 GCNN 接口
+│   ├── gis/ utils/         # 数据读取和空间辅助工具
+│   └── __init__.py
+├── config/                 # 运行参数
+├── data/README.md          # 本地数据目录说明
+├── .env.example            # 配置模板
+├── pyproject.toml          # 包元数据与依赖
+└── requirements.txt        # 锁定环境依赖
 ```
 
 ## 公开版本边界
 
-公开仓库用于说明系统架构、数据流和 Agent/GIS 的职责边界，并提供项目展示页。
-以下内容只存在于私有仓库或部署环境：真实 GIS 数据及元数据、训练好的模型权重、
-公司内部算法适配器、内部服务地址和运行日志。这样既能复现公开的接口和流程，
-也不会把公司的业务资产提交到 GitHub。
+公开版用于展示 Agent 的接口、流程和 GIS 工程结构。私有部署可以在不改变 Agent 与工具层契约的情况下注入业务数据、GCNN 模型和内部算法实现。

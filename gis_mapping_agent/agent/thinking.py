@@ -33,7 +33,8 @@ class ThinkingGISMappingAgent:
         auto_calculate_extent: bool = True,
         data_directory: str = None,
         data_files: List[str] = None,
-        margin_ratio: float = Config.HYPERPARAMETERS.AUTO_EXTENT_MARGIN_RATIO
+        margin_ratio: float = Config.HYPERPARAMETERS.AUTO_EXTENT_MARGIN_RATIO,
+        event_callback: Optional[Any] = None,
     ):
         """初始化思考型GIS制图智能体"""
 
@@ -73,6 +74,9 @@ class ThinkingGISMappingAgent:
         # 设置参数
         self.max_iterations = max_iterations
         self.verbose = verbose
+        # Optional host callback for progress events.  The core agent does not
+        # depend on a web framework; applications may subscribe explicitly.
+        self.event_callback = event_callback
 
         # 当前地图状态
         self.current_map_state: Optional[MapState] = None
@@ -350,14 +354,17 @@ class ThinkingGISMappingAgent:
         tool_input: Dict[str, Any],
         observation: str,
     ) -> None:
-        """Publish a lightweight vector preview event after each tool call."""
+        """Publish a progress event through an optional host-provided callback."""
+        callback = getattr(self, "event_callback", None)
+        if callback is None:
+            return
+
         try:
-            from mapping.realtime import publish_agent_map_event
             from ..tools.unified_mapping_tools import get_unified_tools
 
             tools = get_unified_tools()
             map_state = tools.current_map_state
-            publish_agent_map_event(
+            callback(
                 session_id=getattr(self, "session_id", None),
                 iteration=iteration,
                 tool_name=tool_name,
@@ -367,7 +374,7 @@ class ThinkingGISMappingAgent:
                 map_tools=tools,
             )
         except Exception as e:
-            self.logger.warning(f"实时制图事件发布失败: {e}")
+            self.logger.warning(f"进度事件回调失败: {e}")
 
     def _with_session_id(self, tool: Any, tool_input: Dict[str, Any]) -> Dict[str, Any]:
         """Inject session_id for tools that declare it."""

@@ -24,7 +24,7 @@ class Config:
 
     @staticmethod
     def _normalize_base_url(raw_url: str) -> str:
-        url = (raw_url or "").strip() or "https://api.openai-proxy.org/v1"
+        url = (raw_url or "").strip() or "https://api.openai.com/v1"
         if "api.deepseek.com" in url and not url.rstrip("/").endswith("/v1"):
             return url.rstrip("/") + "/v1"
         return url
@@ -36,7 +36,7 @@ class Config:
         return mapping_key or fallback_key
 
     OPENAI_BASE_URL: str = _normalize_base_url.__func__(
-        os.getenv("MAPPING_OPENAI_BASE_URL") or os.getenv("OPENAI_BASE_URL", "https://api.openai-proxy.org/v1")
+        os.getenv("MAPPING_OPENAI_BASE_URL") or os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
     )
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = os.getenv("MAPPING_OPENAI_MODEL") or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
